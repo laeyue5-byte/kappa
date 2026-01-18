@@ -62,9 +62,8 @@ export default async function MemberDetailPage({ params }: Props) {
     // ========================================
     // LOANS (Hulam + Hulam Put-up) Calculation
     // ========================================
-    // Get the current (most recent) active period
-    const activePeriods = periods.filter(p => !p.isClosed);
-    const currentPeriod = activePeriods[0];
+    // Get the current (most recent) period
+    const currentPeriod = periods[0];
 
     // Interest rate per period
     const interestRate = 0.10;

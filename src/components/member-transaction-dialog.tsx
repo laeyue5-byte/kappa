@@ -49,7 +49,8 @@ export function MemberTransactionDialog({ memberId, memberName, periods, trigger
     const [penalty, setPenalty] = useState('');
 
     // Filter only active (non-closed) periods
-    const activePeriods = periods.filter(p => !p.isClosed);
+    // All periods are available for transactions
+    const availablePeriods = periods;
 
     // Calculate interest preview (10% on both Hulam and Hulam Put-up)
     const hulamAmount = parseFloat(hulam) || 0;
@@ -116,9 +117,9 @@ export function MemberTransactionDialog({ memberId, memberName, periods, trigger
                     </DialogDescription>
                 </DialogHeader>
 
-                {activePeriods.length === 0 ? (
+                {availablePeriods.length === 0 ? (
                     <div className="py-6 text-center text-muted-foreground">
-                        <p>No active periods available.</p>
+                        <p>No periods available.</p>
                         <p className="text-sm mt-1">Create a new period first to record transactions.</p>
                     </div>
                 ) : (
@@ -131,7 +132,7 @@ export function MemberTransactionDialog({ memberId, memberName, periods, trigger
                                     <SelectValue placeholder="Select a period" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {activePeriods.map((period) => (
+                                    {availablePeriods.map((period: Period) => (
                                         <SelectItem key={period.id} value={period.id.toString()}>
                                             {period.name}
                                         </SelectItem>

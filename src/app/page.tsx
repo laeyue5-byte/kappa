@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   const periods = await getPeriods();
   const members = await getMembers();
 
-  const activePeriod = periods.find(p => !p.isClosed);
+  const activePeriod = periods[0]; // Get the most recent period
   const activeMembers = members.filter(m => m.status === 'active');
 
   return (

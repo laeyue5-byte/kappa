@@ -180,6 +180,8 @@ export async function createPeriod(data: { name: string; startDate: Date; endDat
     }).returning();
 
     revalidatePath('/');
+    revalidatePath('/periods');
+    revalidatePath('/ledger');
     return period;
 }
 
@@ -316,6 +318,115 @@ export async function closePeriodAndMigrate(
                 hulamPutUp: remainingHulamPutUp.toFixed(2),
                 hulam: remainingHulam.toFixed(2),
                 interest: '0', // Interest will be calculated dynamically
+                payment: '0',
+                penalty: '0',
+            });
+            migratedMembers.push(member.id);
+        }
+    }
+
+    revalidatePath('/');
+    revalidatePath('/periods');
+    revalidatePath('/members');
+    revalidatePath('/ledger');
+
+    return {
+        success: true,
+        newPeriod,
+        migratedMemberCount: migratedMembers.length,
+    };
+}
+
+/**
+ * Create a new period and optionally carry forward outstanding balances from a source period.
+ * This function does NOT close the source period - it just copies the data.
+ * Outstanding balances get 10% interest charged when carried forward.
+ */
+export async function createPeriodWithCarryForward(
+    sourcePeriodId: number,
+    newPeriodData: { name: string; startDate: Date; endDate?: Date }
+) {
+    // 1. Create the new period
+    const [newPeriod] = await db.insert(periods).values({
+        name: newPeriodData.name,
+        startDate: newPeriodData.startDate,
+        endDate: newPeriodData.endDate,
+    }).returning();
+
+    // 2. Get all members with their ledger entries up to and including the source period
+    const allMembers = await db.query.members.findMany({
+        where: eq(members.status, 'active'),
+        with: {
+            ledgerEntries: true,
+        },
+    });
+
+    // 3. Calculate outstanding balances for each member and create carry-forward entries
+    const interestRate = 0.10;
+    const migratedMembers: number[] = [];
+
+    for (const member of allMembers) {
+        // Only consider entries up to the source period
+        const relevantEntries = member.ledgerEntries.filter(e => e.periodId <= sourcePeriodId);
+
+        if (relevantEntries.length === 0) continue;
+
+        // Calculate totals and outstanding
+        let remainingHulamPutUp = 0;
+        let remainingHulam = 0;
+        let totalLawas = 0;
+
+        // Sort entries chronologically
+        const sortedEntries = [...relevantEntries].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+
+        for (const entry of sortedEntries) {
+            // Add lawas (cumulative)
+            totalLawas += parseInt(entry.lawas.toString()) || 0;
+
+            // Add new loans
+            remainingHulamPutUp += parseFloat(entry.hulamPutUp);
+            remainingHulam += parseFloat(entry.hulam);
+
+            // Process payment - simplified: payment goes to interest first (from entry.interest), then principal
+            let remainingPayment = parseFloat(entry.payment);
+            const interestEntry = parseFloat(entry.interest);
+
+            // Pay interest first
+            if (remainingPayment > 0 && interestEntry > 0) {
+                const interestPayment = Math.min(remainingPayment, interestEntry);
+                remainingPayment -= interestPayment;
+            }
+
+            // Pay Hulam Put-up
+            if (remainingPayment > 0 && remainingHulamPutUp > 0) {
+                const hulamPutUpPayment = Math.min(remainingPayment, remainingHulamPutUp);
+                remainingHulamPutUp -= hulamPutUpPayment;
+                remainingPayment -= hulamPutUpPayment;
+            }
+
+            // Pay Hulam
+            if (remainingPayment > 0 && remainingHulam > 0) {
+                const hulamPayment = Math.min(remainingPayment, remainingHulam);
+                remainingHulam -= hulamPayment;
+            }
+        }
+
+        // If member has outstanding balance or lawas, create carry-forward entry
+        const outstandingPrincipal = remainingHulamPutUp + remainingHulam;
+        if (outstandingPrincipal > 0 || totalLawas > 0) {
+            // Calculate interest on outstanding principal
+            const interestCharge = outstandingPrincipal * interestRate;
+
+            await db.insert(ledgerEntries).values({
+                memberId: member.id,
+                periodId: newPeriod.id,
+                lawas: totalLawas.toString(),
+                putUp: '0',
+                hulamPutUp: remainingHulamPutUp.toFixed(2),
+                hulam: remainingHulam.toFixed(2),
+                interest: interestCharge.toFixed(2), // Charge 10% interest on outstanding
                 payment: '0',
                 penalty: '0',
             });

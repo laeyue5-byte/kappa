@@ -26,8 +26,8 @@ export default async function LedgerPage({ searchParams }: Props) {
     const periods = await getPeriods();
     const members = await getMembers();
 
-    // Find active period or use the one from query param
-    const selectedPeriodId = periodParam ? parseInt(periodParam) : periods.find(p => !p.isClosed)?.id;
+    // Find most recent period or use the one from query param
+    const selectedPeriodId = periodParam ? parseInt(periodParam) : periods[0]?.id;
     const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
 
     const entries = selectedPeriodId ? await getLedgerEntriesByPeriod(selectedPeriodId) : [];
@@ -74,7 +74,7 @@ export default async function LedgerPage({ searchParams }: Props) {
                             </a>
                         </Button>
                     )}
-                    {selectedPeriod && !selectedPeriod.isClosed && (
+                    {selectedPeriod && (
                         <LedgerEntryDialog
                             periodId={selectedPeriod.id}
                             members={members}
@@ -194,9 +194,6 @@ export default async function LedgerPage({ searchParams }: Props) {
                                         <div>
                                             <CardTitle className="flex items-center gap-2">
                                                 {selectedPeriod.name}
-                                                {selectedPeriod.isClosed && (
-                                                    <Badge variant="secondary">Read Only</Badge>
-                                                )}
                                             </CardTitle>
                                             <CardDescription>
                                                 {entries.length} transaction{entries.length !== 1 ? 's' : ''} • {totals.lawas} total Lawas
@@ -212,18 +209,16 @@ export default async function LedgerPage({ searchParams }: Props) {
                                             <p className="text-muted-foreground mb-4">
                                                 Start recording transactions for this period.
                                             </p>
-                                            {!selectedPeriod.isClosed && (
-                                                <LedgerEntryDialog
-                                                    periodId={selectedPeriod.id}
-                                                    members={members}
-                                                    trigger={
-                                                        <Button>
-                                                            <Plus className="h-4 w-4 mr-2" />
-                                                            Add First Transaction
-                                                        </Button>
-                                                    }
-                                                />
-                                            )}
+                                            <LedgerEntryDialog
+                                                periodId={selectedPeriod.id}
+                                                members={members}
+                                                trigger={
+                                                    <Button>
+                                                        <Plus className="h-4 w-4 mr-2" />
+                                                        Add First Transaction
+                                                    </Button>
+                                                }
+                                            />
                                         </div>
                                     ) : (
                                         <div className="overflow-x-auto">
@@ -237,9 +232,7 @@ export default async function LedgerPage({ searchParams }: Props) {
                                                         <TableHead className="text-right">Loans</TableHead>
                                                         <TableHead className="text-right">Payment</TableHead>
                                                         <TableHead className="text-right">Penalty</TableHead>
-                                                        {!selectedPeriod.isClosed && (
-                                                            <TableHead className="w-12"></TableHead>
-                                                        )}
+                                                        <TableHead className="w-12"></TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
@@ -314,19 +307,17 @@ export default async function LedgerPage({ searchParams }: Props) {
                                                                         <span className="text-muted-foreground">-</span>
                                                                     )}
                                                                 </TableCell>
-                                                                {!selectedPeriod.isClosed && (
-                                                                    <TableCell>
-                                                                        <EditLedgerEntryDialog
-                                                                            entry={entry}
-                                                                            memberName={entry.member ? `${entry.member.lastName}, ${entry.member.firstName}` : 'Unknown'}
-                                                                            trigger={
-                                                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                                                    <Edit className="h-4 w-4" />
-                                                                                </Button>
-                                                                            }
-                                                                        />
-                                                                    </TableCell>
-                                                                )}
+                                                                <TableCell>
+                                                                    <EditLedgerEntryDialog
+                                                                        entry={entry}
+                                                                        memberName={entry.member ? `${entry.member.lastName}, ${entry.member.firstName}` : 'Unknown'}
+                                                                        trigger={
+                                                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                                                <Edit className="h-4 w-4" />
+                                                                            </Button>
+                                                                        }
+                                                                    />
+                                                                </TableCell>
                                                             </TableRow>
                                                         );
                                                     })}
@@ -349,7 +340,7 @@ export default async function LedgerPage({ searchParams }: Props) {
                                                         <TableCell className="text-right text-orange-600 dark:text-orange-400">
                                                             {formatCurrency(totals.penalty)}
                                                         </TableCell>
-                                                        {!selectedPeriod.isClosed && <TableCell />}
+                                                        <TableCell />
                                                     </TableRow>
                                                 </TableBody>
                                             </Table>

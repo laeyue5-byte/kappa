@@ -2,16 +2,14 @@ import { getPeriods } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, CalendarDays, Lock, Unlock, Eye, ArrowRightCircle, Trash2, Edit } from 'lucide-react';
+import { Plus, CalendarDays, Eye, Trash2, Edit } from 'lucide-react';
 import Link from 'next/link';
 import { formatDate } from '@/lib/utils/format';
-import { ClosePeriodDialog } from '@/components/close-period-dialog';
 import { DeletePeriodDialog } from '@/components/delete-period-dialog';
 import { EditPeriodDialog } from '@/components/edit-period-dialog';
 
 export default async function PeriodsPage() {
     const periods = await getPeriods();
-    const activePeriod = periods.find(p => !p.isClosed);
 
     return (
         <div className="space-y-6">
@@ -24,18 +22,6 @@ export default async function PeriodsPage() {
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    {activePeriod && (
-                        <ClosePeriodDialog
-                            currentPeriodId={activePeriod.id}
-                            currentPeriodName={activePeriod.name}
-                            trigger={
-                                <Button variant="outline" className="border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950">
-                                    <ArrowRightCircle className="h-4 w-4 mr-2" />
-                                    Close & Start New
-                                </Button>
-                            }
-                        />
-                    )}
                     <Link href="/periods/new">
                         <Button>
                             <Plus className="h-4 w-4 mr-2" />
@@ -67,7 +53,7 @@ export default async function PeriodsPage() {
             ) : (
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                     {periods.map((period) => (
-                        <Card key={period.id} className={period.isClosed ? 'opacity-75' : 'border-primary/50'}>
+                        <Card key={period.id}>
                             <CardHeader className="pb-3">
                                 <div className="flex items-start justify-between">
                                     <div>
@@ -77,18 +63,8 @@ export default async function PeriodsPage() {
                                             {period.endDate && ` - ${formatDate(period.endDate)}`}
                                         </CardDescription>
                                     </div>
-                                    <Badge variant={period.isClosed ? 'secondary' : 'default'}>
-                                        {period.isClosed ? (
-                                            <>
-                                                <Lock className="h-3 w-3 mr-1" />
-                                                Closed
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Unlock className="h-3 w-3 mr-1" />
-                                                Active
-                                            </>
-                                        )}
+                                    <Badge variant="default">
+                                        Active
                                     </Badge>
                                 </div>
                             </CardHeader>
@@ -100,17 +76,6 @@ export default async function PeriodsPage() {
                                             View Ledger
                                         </Button>
                                     </Link>
-                                    {!period.isClosed && (
-                                        <ClosePeriodDialog
-                                            currentPeriodId={period.id}
-                                            currentPeriodName={period.name}
-                                            trigger={
-                                                <Button variant="outline" size="sm" className="border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400">
-                                                    <ArrowRightCircle className="h-4 w-4" />
-                                                </Button>
-                                            }
-                                        />
-                                    )}
                                     <EditPeriodDialog
                                         period={period}
                                         trigger={
