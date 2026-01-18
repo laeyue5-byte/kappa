@@ -65,125 +65,79 @@ export default async function MemberDetailPage({ params }: Props) {
     // Get the current (most recent) period
     const currentPeriod = periods[0];
 
-    // Interest rate per period
-    const interestRate = 0.10;
-
     // ========================================
-    // CALCULATE OUTSTANDING PRINCIPAL
+    // CALCULATE OUTSTANDING BALANCES
     // ========================================
     // Process entries in chronological order
-    // Interest is calculated once per period when first loan is taken
+    // Interest comes from actual ledger entries (not calculated dynamically)
 
     const sortedEntries = [...member.ledgerEntries].sort(
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
-    // Track principal and interest
-    let remainingPrincipal = 0;
-    let remainingHulamPutUp = 0;  // Track Hulam Put-up separately
-    let remainingHulam = 0;       // Track Hulam separately
-    let currentPeriodInterestPaid = false;
-    let currentPeriodInterestAmount = 0;
-
-    // Track interest per period (only charged once per period)
-    const periodInterestCharged = new Map<number, number>();
-    const periodInterestPaidStatus = new Map<number, boolean>();
+    // Track principal, interest, and payments
+    let remainingHulamPutUp = 0;
+    let remainingHulam = 0;
+    let totalInterestCharged = 0;
+    let totalInterestPaid = 0;
 
     // Process each entry in order
     for (const entry of sortedEntries) {
-        const periodId = entry.periodId;
-        const isCurrentPeriod = currentPeriod && periodId === currentPeriod.id;
-
         // Add new loans from this entry
-        const newHulamPutUp = parseFloat(entry.hulamPutUp);
-        const newHulam = parseFloat(entry.hulam);
-        remainingHulamPutUp += newHulamPutUp;
-        remainingHulam += newHulam;
-        remainingPrincipal = remainingHulamPutUp + remainingHulam;
+        remainingHulamPutUp += parseFloat(entry.hulamPutUp);
+        remainingHulam += parseFloat(entry.hulam);
 
-        // Calculate interest for this period if not already calculated
-        if (!periodInterestCharged.has(periodId) && remainingPrincipal > 0) {
-            const interestForPeriod = remainingPrincipal * interestRate;
-            periodInterestCharged.set(periodId, interestForPeriod);
-            periodInterestPaidStatus.set(periodId, false);
-
-            if (isCurrentPeriod) {
-                currentPeriodInterestAmount = interestForPeriod;
-            }
-        }
+        // Track total interest charged from entries
+        const entryInterest = parseFloat(entry.interest);
+        totalInterestCharged += entryInterest;
 
         // Process payment from this entry
-        const payment = parseFloat(entry.payment);
-        if (payment > 0) {
-            const interestForPeriod = periodInterestCharged.get(periodId) || 0;
-            const isPeriodInterestPaid = periodInterestPaidStatus.get(periodId) || false;
+        let remainingPayment = parseFloat(entry.payment);
 
-            let remainingPayment = payment;
+        // Calculate unpaid interest at this point
+        const unpaidInterest = totalInterestCharged - totalInterestPaid;
 
-            if (!isPeriodInterestPaid && interestForPeriod > 0) {
-                // First, cover interest for this period
-                const interestPayment = Math.min(remainingPayment, interestForPeriod);
-                remainingPayment -= interestPayment;
+        // 1. Pay Interest first
+        if (remainingPayment > 0 && unpaidInterest > 0) {
+            const interestPayment = Math.min(remainingPayment, unpaidInterest);
+            remainingPayment -= interestPayment;
+            totalInterestPaid += interestPayment;
+        }
 
-                if (interestPayment >= interestForPeriod) {
-                    periodInterestPaidStatus.set(periodId, true);
-                    if (isCurrentPeriod) {
-                        currentPeriodInterestPaid = true;
-                    }
-                }
-            }
+        // 2. Pay Hulam Put-up
+        if (remainingPayment > 0 && remainingHulamPutUp > 0) {
+            const paymentVal = Math.min(remainingPayment, remainingHulamPutUp);
+            remainingHulamPutUp -= paymentVal;
+            remainingPayment -= paymentVal;
+        }
 
-            // Remaining payment goes to principal (Hulam Put-up first, then Hulam)
-            if (remainingPayment > 0) {
-                // Pay off Hulam Put-up first
-                const hulamPutUpPayment = Math.min(remainingPayment, remainingHulamPutUp);
-                remainingHulamPutUp -= hulamPutUpPayment;
-                remainingPayment -= hulamPutUpPayment;
-
-                // Then pay off Hulam
-                const hulamPayment = Math.min(remainingPayment, remainingHulam);
-                remainingHulam -= hulamPayment;
-                remainingPayment -= hulamPayment;
-            }
-
-            remainingPrincipal = remainingHulamPutUp + remainingHulam;
+        // 3. Pay Hulam
+        if (remainingPayment > 0 && remainingHulam > 0) {
+            const paymentVal = Math.min(remainingPayment, remainingHulam);
+            remainingHulam -= paymentVal;
+            remainingPayment -= paymentVal;
         }
     }
 
-    // Outstanding loan principal
-    const outstandingPrincipal = remainingPrincipal;
+    // Outstanding values (ensure non-negative)
+    const outstandingHulamPutUp = Math.max(0, remainingHulamPutUp);
+    const outstandingHulam = Math.max(0, remainingHulam);
+    const outstandingPrincipal = outstandingHulamPutUp + outstandingHulam;
 
     // Total loans (for reference)
     const totalLoans = totals.hulamPutUp + totals.hulam;
 
-    // Use the actual tracked outstanding values (not proportional)
-    const outstandingHulamPutUp = remainingHulamPutUp;
-    const outstandingHulam = remainingHulam;
+    // Remaining interest = total charged - total paid
+    const interestOwed = Math.max(0, totalInterestCharged - totalInterestPaid);
 
-    // Interest for current period (calculated at start of period, before any payments)
-    // If no entries in current period yet, calculate based on current principal
-    const currentPeriodInterest = currentPeriodInterestAmount > 0
-        ? currentPeriodInterestAmount
-        : outstandingPrincipal * interestRate;
-
-    // Check if current period has interest paid
-    const isCurrentPeriodInterestPaid = currentPeriodInterestPaid;
-
-    // Interest owed = current period interest if not yet paid
-    const interestOwed = isCurrentPeriodInterestPaid ? 0 : currentPeriodInterest;
-
-    // Track which periods have any payments (for the dialog)
-    const periodIdsWithPayments = new Set(
-        member.ledgerEntries
-            .filter(entry => parseFloat(entry.payment) > 0)
-            .map(entry => entry.periodId)
-    );
+    // Track which periods have interest already paid
+    const periodIdsWithInterestPaid = sortedEntries
+        .filter(entry => parseFloat(entry.payment) > 0 && parseFloat(entry.interest) > 0)
+        .map(entry => entry.periodId);
 
     // ========================================
     // TOTAL OUTSTANDING BALANCE
     // ========================================
-    // = Outstanding Principal + Current Period Interest (if not paid)
-    // Once interest is paid for a period, balance is just the principal
     const outstandingBalance = outstandingPrincipal + interestOwed;
 
     const statusColors: Record<string, string> = {
@@ -235,7 +189,7 @@ export default async function MemberDetailPage({ params }: Props) {
                         }}
                         totalPayments={totals.payment}
                         periods={periods}
-                        periodIdsWithInterestPaid={Array.from(periodIdsWithPayments)}
+                        periodIdsWithInterestPaid={periodIdsWithInterestPaid}
                         trigger={
                             <Button variant="outline" className="border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950">
                                 <CreditCard className="h-4 w-4 mr-2" />
@@ -340,21 +294,21 @@ export default async function MemberDetailPage({ params }: Props) {
                     </CardContent>
                 </Card>
 
-                {/* Interest This Period */}
-                <Card className={isCurrentPeriodInterestPaid ? 'border-green-200 dark:border-green-800' : ''}>
+                {/* Interest Owed */}
+                <Card className={interestOwed === 0 ? 'border-green-200 dark:border-green-800' : ''}>
                     <CardContent className="pt-6">
                         <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${isCurrentPeriodInterestPaid ? 'bg-green-100 dark:bg-green-900' : 'bg-blue-100 dark:bg-blue-900'}`}>
-                                <TrendingUp className={`h-5 w-5 ${isCurrentPeriodInterestPaid ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`} />
+                            <div className={`p-2 rounded-lg ${interestOwed === 0 ? 'bg-green-100 dark:bg-green-900' : 'bg-blue-100 dark:bg-blue-900'}`}>
+                                <TrendingUp className={`h-5 w-5 ${interestOwed === 0 ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`} />
                             </div>
                             <div>
                                 <p className="text-sm text-muted-foreground">
-                                    Interest {currentPeriod?.name || 'This Period'}
+                                    Interest Owed
                                 </p>
-                                {isCurrentPeriodInterestPaid ? (
+                                {interestOwed === 0 ? (
                                     <p className="text-xl font-bold text-green-600 dark:text-green-400">PAID ✓</p>
                                 ) : (
-                                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(currentPeriodInterest)}</p>
+                                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(interestOwed)}</p>
                                 )}
                             </div>
                         </div>

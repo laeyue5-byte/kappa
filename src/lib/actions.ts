@@ -82,11 +82,7 @@ export async function getMembersWithStats() {
         let remainingHulamPutUp = 0;
         let remainingHulam = 0;
         let totalInterestCharged = 0;
-        let totalInterestPaid = 0; // Track actual paid interest to calculate remaining interest
-
-        // Track interest per period
-        const periodInterestCharged = new Map<number, number>();
-        const periodInterestPaidStatus = new Map<number, boolean>();
+        let totalInterestPaid = 0;
 
         const sortedEntries = [...member.ledgerEntries].sort(
             (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -96,7 +92,10 @@ export async function getMembersWithStats() {
             // Basic totals
             totalPutUp += parseFloat(entry.putUp);
             totalLawas += parseInt(entry.lawas.toString()) || 0;
-            totalInterestCharged += parseFloat(entry.interest);
+
+            // Track total interest charged from all entries
+            const entryInterest = parseFloat(entry.interest);
+            totalInterestCharged += entryInterest;
 
             // Track remaining loans
             remainingHulamPutUp += parseFloat(entry.hulamPutUp);
@@ -105,14 +104,17 @@ export async function getMembersWithStats() {
             // Process payment to calculate remaining balances
             let remainingPayment = parseFloat(entry.payment);
 
-            // 1. Pay Interest first
-            if (remainingPayment > 0) {
-                const interestEntry = parseFloat(entry.interest);
-                if (interestEntry > 0) {
-                    const interestPayment = Math.min(remainingPayment, interestEntry);
-                    remainingPayment -= interestPayment;
-                    totalInterestPaid += interestPayment;
-                }
+            // Calculate outstanding principal BEFORE this payment
+            const outstandingPrincipal = remainingHulamPutUp + remainingHulam;
+
+            // Calculate how much interest is still unpaid up to this point
+            const unpaidInterest = totalInterestCharged - totalInterestPaid;
+
+            // 1. Pay Interest first (payments go toward ANY unpaid interest, not just this entry's interest)
+            if (remainingPayment > 0 && unpaidInterest > 0) {
+                const interestPayment = Math.min(remainingPayment, unpaidInterest);
+                remainingPayment -= interestPayment;
+                totalInterestPaid += interestPayment;
             }
 
             // 2. Pay Hulam Put Up
@@ -130,14 +132,17 @@ export async function getMembersWithStats() {
             }
         }
 
+        // Remaining interest = total charged - total paid toward interest
+        const remainingInterest = Math.max(0, totalInterestCharged - totalInterestPaid);
+
         return {
             ...member,
             stats: {
                 totalLawas,
                 totalPutUp,
-                remainingHulamPutUp,
-                remainingHulam,
-                remainingInterest: totalInterestCharged - totalInterestPaid
+                remainingHulamPutUp: Math.max(0, remainingHulamPutUp),
+                remainingHulam: Math.max(0, remainingHulam),
+                remainingInterest
             }
         };
     });
