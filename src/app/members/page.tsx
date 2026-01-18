@@ -2,8 +2,9 @@ import { getMembersWithStats } from '@/lib/actions';
 import { MembersTable } from '../../components/members-table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Upload, Users } from 'lucide-react';
+import { Plus, Upload, Users, Percent } from 'lucide-react';
 import Link from 'next/link';
+import { PayAllInterestDialog } from '@/components/pay-all-interest-dialog';
 
 interface Props {
     searchParams: Promise<{ q?: string; sort?: string; order?: string }>;
@@ -12,6 +13,10 @@ interface Props {
 export default async function MembersPage({ searchParams }: Props) {
     const { q: searchQuery, sort = 'lastName', order = 'asc' } = await searchParams;
     const allMembers = await getMembersWithStats();
+
+    // Calculate total outstanding interest
+    const membersWithInterest = allMembers.filter(m => (m.stats?.remainingInterest || 0) > 0);
+    const totalInterestDue = membersWithInterest.reduce((acc, m) => acc + (m.stats?.remainingInterest || 0), 0);
 
     // Filter members based on search query
     const filteredMembers = searchQuery
@@ -60,7 +65,17 @@ export default async function MembersPage({ searchParams }: Props) {
                         Manage your Kapunungan members and view their transaction history.
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                    <PayAllInterestDialog
+                        membersWithInterest={membersWithInterest.length}
+                        totalInterestDue={totalInterestDue}
+                        trigger={
+                            <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950">
+                                <Percent className="h-4 w-4 mr-2" />
+                                Pay All Interest ({membersWithInterest.length})
+                            </Button>
+                        }
+                    />
                     <Link href="/members/import">
                         <Button variant="outline">
                             <Upload className="h-4 w-4 mr-2" />

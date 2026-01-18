@@ -161,6 +161,92 @@ export async function importMembersFromCSV(csvData: { first_name: string; last_n
     return result;
 }
 
+/**
+ * Pay all outstanding interest for all members in a specific period.
+ * Creates payment entries equal to each member's outstanding interest.
+ */
+export async function payAllMembersInterest(periodId: number) {
+    // Get all members with their stats to find outstanding interest
+    const allMembers = await db.query.members.findMany({
+        where: eq(members.status, 'active'),
+        with: {
+            ledgerEntries: true,
+        },
+    });
+
+    let membersPaid = 0;
+    let totalInterestPaid = 0;
+
+    for (const member of allMembers) {
+        // Calculate remaining interest using same logic as getMembersWithStats
+        let totalInterestCharged = 0;
+        let totalInterestPaidSoFar = 0;
+        let remainingHulamPutUp = 0;
+        let remainingHulam = 0;
+
+        const sortedEntries = [...member.ledgerEntries].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+
+        for (const entry of sortedEntries) {
+            const entryInterest = parseFloat(entry.interest);
+            totalInterestCharged += entryInterest;
+
+            remainingHulamPutUp += parseFloat(entry.hulamPutUp);
+            remainingHulam += parseFloat(entry.hulam);
+
+            let remainingPayment = parseFloat(entry.payment);
+            const unpaidInterest = totalInterestCharged - totalInterestPaidSoFar;
+
+            if (remainingPayment > 0 && unpaidInterest > 0) {
+                const interestPayment = Math.min(remainingPayment, unpaidInterest);
+                remainingPayment -= interestPayment;
+                totalInterestPaidSoFar += interestPayment;
+            }
+
+            if (remainingPayment > 0 && remainingHulamPutUp > 0) {
+                const paymentVal = Math.min(remainingPayment, remainingHulamPutUp);
+                remainingHulamPutUp -= paymentVal;
+                remainingPayment -= paymentVal;
+            }
+
+            if (remainingPayment > 0 && remainingHulam > 0) {
+                const paymentVal = Math.min(remainingPayment, remainingHulam);
+                remainingHulam -= paymentVal;
+            }
+        }
+
+        const remainingInterest = Math.max(0, totalInterestCharged - totalInterestPaidSoFar);
+
+        // If member has outstanding interest, create a payment entry
+        if (remainingInterest > 0) {
+            await db.insert(ledgerEntries).values({
+                memberId: member.id,
+                periodId: periodId,
+                lawas: '0',
+                putUp: '0',
+                hulamPutUp: '0',
+                hulam: '0',
+                interest: '0',
+                payment: remainingInterest.toFixed(2),
+                penalty: '0',
+            });
+            membersPaid++;
+            totalInterestPaid += remainingInterest;
+        }
+    }
+
+    revalidatePath('/');
+    revalidatePath('/members');
+    revalidatePath('/ledger');
+
+    return {
+        success: true,
+        membersPaid,
+        totalInterestPaid,
+    };
+}
+
 // ============================================
 // PERIOD ACTIONS
 // ============================================
