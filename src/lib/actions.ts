@@ -164,6 +164,7 @@ export async function importMembersFromCSV(csvData: { first_name: string; last_n
 /**
  * Pay all outstanding interest for all members in a specific period.
  * Creates payment entries equal to each member's outstanding interest.
+ * Returns the IDs of created entries for undo functionality.
  */
 export async function payAllMembersInterest(periodId: number) {
     // Get all members with their stats to find outstanding interest
@@ -176,6 +177,7 @@ export async function payAllMembersInterest(periodId: number) {
 
     let membersPaid = 0;
     let totalInterestPaid = 0;
+    const createdEntryIds: number[] = [];
 
     for (const member of allMembers) {
         // Calculate remaining interest using same logic as getMembersWithStats
@@ -220,7 +222,7 @@ export async function payAllMembersInterest(periodId: number) {
 
         // If member has outstanding interest, create a payment entry
         if (remainingInterest > 0) {
-            await db.insert(ledgerEntries).values({
+            const [newEntry] = await db.insert(ledgerEntries).values({
                 memberId: member.id,
                 periodId: periodId,
                 lawas: '0',
@@ -230,7 +232,8 @@ export async function payAllMembersInterest(periodId: number) {
                 interest: '0',
                 payment: remainingInterest.toFixed(2),
                 penalty: '0',
-            });
+            }).returning();
+            createdEntryIds.push(newEntry.id);
             membersPaid++;
             totalInterestPaid += remainingInterest;
         }
@@ -244,6 +247,76 @@ export async function payAllMembersInterest(periodId: number) {
         success: true,
         membersPaid,
         totalInterestPaid,
+        entryIds: createdEntryIds,
+    };
+}
+
+/**
+ * Undo a bulk interest payment by deleting the created entries.
+ */
+export async function undoPayAllMembersInterest(entryIds: number[]) {
+    if (entryIds.length === 0) {
+        return { success: false, message: 'No entries to undo' };
+    }
+
+    // Delete all the entries that were created
+    for (const id of entryIds) {
+        await db.delete(ledgerEntries).where(eq(ledgerEntries.id, id));
+    }
+
+    revalidatePath('/');
+    revalidatePath('/members');
+    revalidatePath('/ledger');
+
+    return {
+        success: true,
+        entriesDeleted: entryIds.length,
+    };
+}
+
+/**
+ * Find and delete all payment-only entries (bulk interest payments) from a specific period.
+ * These are entries where everything is 0 except payment.
+ * Use with caution - only for undoing accidental bulk payments.
+ */
+export async function deleteBulkInterestPayments(periodId: number) {
+    // Find all payment-only entries in this period
+    const allEntries = await db.query.ledgerEntries.findMany({
+        where: eq(ledgerEntries.periodId, periodId),
+    });
+
+    // Filter to find payment-only entries (characteristic of bulk interest payments)
+    const paymentOnlyEntries = allEntries.filter(entry =>
+        parseFloat(entry.lawas.toString()) === 0 &&
+        parseFloat(entry.putUp) === 0 &&
+        parseFloat(entry.hulamPutUp) === 0 &&
+        parseFloat(entry.hulam) === 0 &&
+        parseFloat(entry.interest) === 0 &&
+        parseFloat(entry.payment) > 0 &&
+        parseFloat(entry.penalty) === 0
+    );
+
+    if (paymentOnlyEntries.length === 0) {
+        return {
+            success: false,
+            message: 'No bulk interest payment entries found',
+            entriesDeleted: 0,
+        };
+    }
+
+    // Delete them
+    for (const entry of paymentOnlyEntries) {
+        await db.delete(ledgerEntries).where(eq(ledgerEntries.id, entry.id));
+    }
+
+    revalidatePath('/');
+    revalidatePath('/members');
+    revalidatePath('/ledger');
+
+    return {
+        success: true,
+        entriesDeleted: paymentOnlyEntries.length,
+        totalPaymentRemoved: paymentOnlyEntries.reduce((acc, e) => acc + parseFloat(e.payment), 0),
     };
 }
 

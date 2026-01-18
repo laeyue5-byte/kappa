@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, ReactNode, useEffect } from 'react';
-import { payAllMembersInterest, getPeriods } from '@/lib/actions';
+import { payAllMembersInterest, undoPayAllMembersInterest, getPeriods } from '@/lib/actions';
 import {
     Dialog,
     DialogContent,
@@ -21,7 +21,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Percent, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Percent, CheckCircle, AlertTriangle, Undo2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
 
 interface Period {
@@ -62,6 +62,20 @@ export function PayAllInterestDialog({ membersWithInterest, totalInterestDue, tr
         }
     }, [open]);
 
+    async function handleUndo(entryIds: number[]) {
+        try {
+            const result = await undoPayAllMembersInterest(entryIds);
+            if (result.success) {
+                toast.success(`Undo successful! ${result.entriesDeleted} payment entries removed.`);
+            } else {
+                toast.error('Failed to undo. The entries may have already been modified.');
+            }
+        } catch (error) {
+            toast.error('Failed to undo. Please try again.');
+            console.error(error);
+        }
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
 
@@ -73,8 +87,17 @@ export function PayAllInterestDialog({ membersWithInterest, totalInterestDue, tr
         setLoading(true);
         try {
             const result = await payAllMembersInterest(parseInt(periodId));
+
+            // Show success toast with Undo button
             toast.success(
-                `Interest paid for ${result.membersPaid} members! Total: ${formatCurrency(result.totalInterestPaid)}`
+                `Interest paid for ${result.membersPaid} members! Total: ${formatCurrency(result.totalInterestPaid)}`,
+                {
+                    duration: 10000, // Show for 10 seconds
+                    action: {
+                        label: 'Undo',
+                        onClick: () => handleUndo(result.entryIds),
+                    },
+                }
             );
             setOpen(false);
         } catch (error) {
