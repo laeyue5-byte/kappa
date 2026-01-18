@@ -47,7 +47,7 @@ export default async function DashboardPage() {
       {/* Active Period Banner */}
       {activePeriod ? (
         <Card className="border-primary/50 bg-primary/5">
-          <CardContent className="flex items-center justify-between py-4">
+          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
             <div className="flex items-center gap-3">
               <Badge variant="default" className="rounded-full">Active</Badge>
               <span className="font-medium">{activePeriod.name}</span>
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
         </Card>
       ) : (
         <Card className="border-warning bg-warning/10">
-          <CardContent className="flex items-center justify-between py-4">
+          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 text-warning" />
               <span className="text-sm">No active period. Create one to start recording transactions.</span>
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Required Put-up</p>
                   <p className="text-2xl font-bold">{formatCurrency(requiredPutUp)}</p>

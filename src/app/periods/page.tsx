@@ -65,7 +65,7 @@ export default async function PeriodsPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                     {periods.map((period) => (
                         <Card key={period.id} className={period.isClosed ? 'opacity-75' : 'border-primary/50'}>
                             <CardHeader className="pb-3">

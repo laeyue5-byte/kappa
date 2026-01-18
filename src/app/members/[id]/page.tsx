@@ -196,31 +196,31 @@ export default async function MemberDetailPage({ params }: Props) {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <BackButton fallbackHref="/members" />
                 <div className="flex-1">
                     <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-xl font-bold text-primary">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span className="text-lg sm:text-xl font-bold text-primary">
                                 {getInitials(member.firstName, member.lastName)}
                             </span>
                         </div>
-                        <div>
-                            <h1 className="text-3xl font-bold tracking-tight">
+                        <div className="min-w-0">
+                            <h1 className="text-xl sm:text-3xl font-bold tracking-tight truncate">
                                 {member.lastName}, {member.firstName}
                             </h1>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
                                 <Badge className={statusColors[member.status]} variant="secondary">
                                     {member.status.charAt(0).toUpperCase() + member.status.slice(1)}
                                 </Badge>
-                                <span className="text-muted-foreground text-sm">
+                                <span className="text-muted-foreground text-xs sm:text-sm">
                                     Member since {formatDate(member.createdAt)}
                                 </span>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <DeleteMemberTransactionsDialog
                         memberId={member.id}
                         memberName={`${member.lastName}, ${member.firstName}`}
@@ -268,7 +268,7 @@ export default async function MemberDetailPage({ params }: Props) {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
                 {/* Put-up (Membership Fee) */}
                 <Card className={putUpBalance === 0 && requiredPutUp > 0 ? 'border-green-200 dark:border-green-800' : ''}>
                     <CardContent className="pt-6">
@@ -421,47 +421,49 @@ export default async function MemberDetailPage({ params }: Props) {
                             />
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Period</TableHead>
-                                    <TableHead className="text-right">Lawas</TableHead>
-                                    <TableHead className="text-right">Put-up</TableHead>
-                                    <TableHead className="text-right">Hulam Put-up</TableHead>
-                                    <TableHead className="text-right">Hulam</TableHead>
-                                    <TableHead className="text-right">Interest</TableHead>
-                                    <TableHead className="text-right">Payment</TableHead>
-                                    <TableHead className="text-right">Penalty</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {member.ledgerEntries.map((entry) => (
-                                    <TableRow key={entry.id}>
-                                        <TableCell className="text-muted-foreground text-sm">{formatDate(entry.createdAt)}</TableCell>
-                                        <TableCell className="font-medium">{entry.period?.name}</TableCell>
-                                        <TableCell className="text-right">{entry.lawas}</TableCell>
-                                        <TableCell className="text-right text-positive">{formatCurrency(entry.putUp)}</TableCell>
-                                        <TableCell className="text-right text-orange-600 dark:text-orange-400">{formatCurrency(entry.hulamPutUp)}</TableCell>
-                                        <TableCell className="text-right text-negative">{formatCurrency(entry.hulam)}</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(entry.interest)}</TableCell>
-                                        <TableCell className="text-right text-positive">{formatCurrency(entry.payment)}</TableCell>
-                                        <TableCell className="text-right text-negative">{formatCurrency(entry.penalty)}</TableCell>
+                        <div className="overflow-x-auto -mx-6 px-6">
+                            <Table className="min-w-[800px]">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Period</TableHead>
+                                        <TableHead className="text-right">Lawas</TableHead>
+                                        <TableHead className="text-right">Put-up</TableHead>
+                                        <TableHead className="text-right">Hulam Put-up</TableHead>
+                                        <TableHead className="text-right">Hulam</TableHead>
+                                        <TableHead className="text-right">Interest</TableHead>
+                                        <TableHead className="text-right">Payment</TableHead>
+                                        <TableHead className="text-right">Penalty</TableHead>
                                     </TableRow>
-                                ))}
-                                {/* Totals Row */}
-                                <TableRow className="bg-muted/50 font-bold">
-                                    <TableCell colSpan={2}>Total</TableCell>
-                                    <TableCell className="text-right">-</TableCell>
-                                    <TableCell className="text-right text-positive">{formatCurrency(totals.putUp)}</TableCell>
-                                    <TableCell className="text-right text-orange-600 dark:text-orange-400">{formatCurrency(totals.hulamPutUp)}</TableCell>
-                                    <TableCell className="text-right text-negative">{formatCurrency(totals.hulam)}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(interestOwed)}</TableCell>
-                                    <TableCell className="text-right text-positive">{formatCurrency(totals.payment)}</TableCell>
-                                    <TableCell className="text-right text-negative">{formatCurrency(totals.penalty)}</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {member.ledgerEntries.map((entry) => (
+                                        <TableRow key={entry.id}>
+                                            <TableCell className="text-muted-foreground text-sm">{formatDate(entry.createdAt)}</TableCell>
+                                            <TableCell className="font-medium">{entry.period?.name}</TableCell>
+                                            <TableCell className="text-right">{entry.lawas}</TableCell>
+                                            <TableCell className="text-right text-positive">{formatCurrency(entry.putUp)}</TableCell>
+                                            <TableCell className="text-right text-orange-600 dark:text-orange-400">{formatCurrency(entry.hulamPutUp)}</TableCell>
+                                            <TableCell className="text-right text-negative">{formatCurrency(entry.hulam)}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(entry.interest)}</TableCell>
+                                            <TableCell className="text-right text-positive">{formatCurrency(entry.payment)}</TableCell>
+                                            <TableCell className="text-right text-negative">{formatCurrency(entry.penalty)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {/* Totals Row */}
+                                    <TableRow className="bg-muted/50 font-bold">
+                                        <TableCell colSpan={2}>Total</TableCell>
+                                        <TableCell className="text-right">-</TableCell>
+                                        <TableCell className="text-right text-positive">{formatCurrency(totals.putUp)}</TableCell>
+                                        <TableCell className="text-right text-orange-600 dark:text-orange-400">{formatCurrency(totals.hulamPutUp)}</TableCell>
+                                        <TableCell className="text-right text-negative">{formatCurrency(totals.hulam)}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(interestOwed)}</TableCell>
+                                        <TableCell className="text-right text-positive">{formatCurrency(totals.payment)}</TableCell>
+                                        <TableCell className="text-right text-negative">{formatCurrency(totals.penalty)}</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
                     )}
                 </CardContent>
             </Card>
