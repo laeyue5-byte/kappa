@@ -71,7 +71,7 @@ export default function NewPeriodPage() {
                         endDate: endDate ? new Date(endDate) : undefined
                     }
                 );
-                toast.success(`Period created! ${result.migratedMemberCount} members with outstanding balances were carried forward with 10% interest.`);
+                toast.success(`Period created! Interest charges added for ${result.migratedMemberCount} members with outstanding balances.`);
             } else {
                 // Create empty period
                 await createPeriod({
@@ -195,11 +195,11 @@ export default function NewPeriodPage() {
                                         <div className="flex gap-3 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
                                             <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
                                             <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                                                <p className="font-medium">When importing from a previous period:</p>
+                                                <p className="font-medium">Charging interest for the new period:</p>
                                                 <ul className="list-disc ml-4 mt-1 space-y-1">
-                                                    <li>Outstanding loan balances will be carried forward</li>
-                                                    <li><strong>10% interest</strong> will be charged on unpaid balances</li>
-                                                    <li>Lawas (shares) count will be preserved</li>
+                                                    <li>Members with unpaid loans will have <strong>10% interest</strong> added</li>
+                                                    <li>Principal amounts are NOT duplicated (tracked from original entries)</li>
+                                                    <li>An interest-only entry will be created in the new period</li>
                                                 </ul>
                                             </div>
                                         </div>

@@ -338,9 +338,12 @@ export async function closePeriodAndMigrate(
 }
 
 /**
- * Create a new period and optionally carry forward outstanding balances from a source period.
- * This function does NOT close the source period - it just copies the data.
- * Outstanding balances get 10% interest charged when carried forward.
+ * Create a new period and charge interest on outstanding balances from a source period.
+ * This function does NOT duplicate the principal - it only creates an interest entry
+ * for members who have outstanding balances.
+ * 
+ * The outstanding principal is still tracked from the original entries in previous periods.
+ * This just adds the 10% interest charge for the new period.
  */
 export async function createPeriodWithCarryForward(
     sourcePeriodId: number,
@@ -371,10 +374,9 @@ export async function createPeriodWithCarryForward(
 
         if (relevantEntries.length === 0) continue;
 
-        // Calculate totals and outstanding
+        // Calculate outstanding balance
         let remainingHulamPutUp = 0;
         let remainingHulam = 0;
-        let totalLawas = 0;
 
         // Sort entries chronologically
         const sortedEntries = [...relevantEntries].sort(
@@ -382,9 +384,6 @@ export async function createPeriodWithCarryForward(
         );
 
         for (const entry of sortedEntries) {
-            // Add lawas (cumulative)
-            totalLawas += parseInt(entry.lawas.toString()) || 0;
-
             // Add new loans
             remainingHulamPutUp += parseFloat(entry.hulamPutUp);
             remainingHulam += parseFloat(entry.hulam);
@@ -413,20 +412,22 @@ export async function createPeriodWithCarryForward(
             }
         }
 
-        // If member has outstanding balance or lawas, create carry-forward entry
+        // If member has outstanding balance, create INTEREST-ONLY entry
+        // DO NOT duplicate the principal - just charge interest on it
         const outstandingPrincipal = remainingHulamPutUp + remainingHulam;
-        if (outstandingPrincipal > 0 || totalLawas > 0) {
+        if (outstandingPrincipal > 0) {
             // Calculate interest on outstanding principal
             const interestCharge = outstandingPrincipal * interestRate;
 
+            // Create ONLY an interest entry - no principal duplication!
             await db.insert(ledgerEntries).values({
                 memberId: member.id,
                 periodId: newPeriod.id,
-                lawas: totalLawas.toString(),
-                putUp: '0',
-                hulamPutUp: remainingHulamPutUp.toFixed(2),
-                hulam: remainingHulam.toFixed(2),
-                interest: interestCharge.toFixed(2), // Charge 10% interest on outstanding
+                lawas: '0',           // No new lawas
+                putUp: '0',           // No new put-up
+                hulamPutUp: '0',      // DO NOT duplicate - stays 0
+                hulam: '0',           // DO NOT duplicate - stays 0
+                interest: interestCharge.toFixed(2), // Only charge interest
                 payment: '0',
                 penalty: '0',
             });
