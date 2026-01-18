@@ -528,7 +528,8 @@ export async function createPeriodWithCarryForward(
         },
     });
 
-    // 3. Calculate outstanding balances for each member and create carry-forward entries
+    // 3. Calculate outstanding balances for each member and create interest entries
+    // Interest is charged on UNPAID PRINCIPAL only (after all payments are applied)
     const interestRate = 0.10;
     const migratedMembers: number[] = [];
 
@@ -538,9 +539,11 @@ export async function createPeriodWithCarryForward(
 
         if (relevantEntries.length === 0) continue;
 
-        // Calculate outstanding balance
+        // Calculate outstanding balance using same logic as getMembersWithStats
         let remainingHulamPutUp = 0;
         let remainingHulam = 0;
+        let totalInterestCharged = 0;
+        let totalInterestPaid = 0;
 
         // Sort entries chronologically
         const sortedEntries = [...relevantEntries].sort(
@@ -552,35 +555,43 @@ export async function createPeriodWithCarryForward(
             remainingHulamPutUp += parseFloat(entry.hulamPutUp);
             remainingHulam += parseFloat(entry.hulam);
 
-            // Process payment - simplified: payment goes to interest first (from entry.interest), then principal
-            let remainingPayment = parseFloat(entry.payment);
-            const interestEntry = parseFloat(entry.interest);
+            // Track total interest charged from all entries
+            const entryInterest = parseFloat(entry.interest);
+            totalInterestCharged += entryInterest;
 
-            // Pay interest first
-            if (remainingPayment > 0 && interestEntry > 0) {
-                const interestPayment = Math.min(remainingPayment, interestEntry);
+            // Process payment
+            let remainingPayment = parseFloat(entry.payment);
+
+            // Calculate unpaid interest at this point
+            const unpaidInterest = totalInterestCharged - totalInterestPaid;
+
+            // 1. Pay Interest first (payments go toward ANY unpaid interest)
+            if (remainingPayment > 0 && unpaidInterest > 0) {
+                const interestPayment = Math.min(remainingPayment, unpaidInterest);
                 remainingPayment -= interestPayment;
+                totalInterestPaid += interestPayment;
             }
 
-            // Pay Hulam Put-up
+            // 2. Pay Hulam Put-up
             if (remainingPayment > 0 && remainingHulamPutUp > 0) {
                 const hulamPutUpPayment = Math.min(remainingPayment, remainingHulamPutUp);
                 remainingHulamPutUp -= hulamPutUpPayment;
                 remainingPayment -= hulamPutUpPayment;
             }
 
-            // Pay Hulam
+            // 3. Pay Hulam
             if (remainingPayment > 0 && remainingHulam > 0) {
                 const hulamPayment = Math.min(remainingPayment, remainingHulam);
                 remainingHulam -= hulamPayment;
             }
         }
 
-        // If member has outstanding balance, create INTEREST-ONLY entry
-        // DO NOT duplicate the principal - just charge interest on it
-        const outstandingPrincipal = remainingHulamPutUp + remainingHulam;
+        // Calculate the REMAINING unpaid principal (after all payments)
+        const outstandingPrincipal = Math.max(0, remainingHulamPutUp) + Math.max(0, remainingHulam);
+
+        // Only charge interest if there's outstanding PRINCIPAL
         if (outstandingPrincipal > 0) {
-            // Calculate interest on outstanding principal
+            // Calculate interest on outstanding principal only
             const interestCharge = outstandingPrincipal * interestRate;
 
             // Create ONLY an interest entry - no principal duplication!
@@ -591,7 +602,7 @@ export async function createPeriodWithCarryForward(
                 putUp: '0',           // No new put-up
                 hulamPutUp: '0',      // DO NOT duplicate - stays 0
                 hulam: '0',           // DO NOT duplicate - stays 0
-                interest: interestCharge.toFixed(2), // Only charge interest
+                interest: interestCharge.toFixed(2), // Only charge interest on principal
                 payment: '0',
                 penalty: '0',
             });
