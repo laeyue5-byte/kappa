@@ -729,9 +729,6 @@ export async function getDashboardStats() {
         },
     });
 
-    // Interest rate per period
-    const interestRate = 0.10;
-
     // Aggregate totals
     let totalPutUp = 0;
     let totalHulamPutUp = 0;
@@ -741,13 +738,21 @@ export async function getDashboardStats() {
     let totalLawas = 0;
     let outstandingLoansTotal = 0;
     let totalInterestCharged = 0;
+    let totalInterestPaid = 0;
 
     for (const member of allMembers) {
-        // Process each member's entries
+        // Use consistent logic - same as getMembersWithStats
         let remainingHulamPutUp = 0;
         let remainingHulam = 0;
+        let memberInterestCharged = 0;
+        let memberInterestPaid = 0;
 
-        for (const entry of member.ledgerEntries) {
+        // Sort entries chronologically for proper payment application
+        const sortedEntries = [...member.ledgerEntries].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+
+        for (const entry of sortedEntries) {
             // Aggregate totals directly from DB values
             totalPutUp += parseFloat(entry.putUp);
             totalHulamPutUp += parseFloat(entry.hulamPutUp);
@@ -755,47 +760,53 @@ export async function getDashboardStats() {
             totalPayments += parseFloat(entry.payment);
             totalPenalty += parseFloat(entry.penalty);
             totalLawas += parseInt(entry.lawas.toString()) || 0;
-            totalInterestCharged += parseFloat(entry.interest);
 
-            // Track remaining loans for outstanding balance calculation
-            // Note: This part still needs logic to subtract payments to find CURRENT outstanding
+            // Track loans
             remainingHulamPutUp += parseFloat(entry.hulamPutUp);
             remainingHulam += parseFloat(entry.hulam);
 
-            // Apply payments to reduce outstanding balance logic
-            // We need this solely for "Outstanding Loans" card, not for "Total Interest"
-            let payment = parseFloat(entry.payment);
+            // Track interest charged
+            const entryInterest = parseFloat(entry.interest);
+            memberInterestCharged += entryInterest;
+            totalInterestCharged += entryInterest;
 
-            // 1. Pay Interest first
-            const interest = parseFloat(entry.interest);
-            if (payment > 0 && interest > 0) {
-                const interestPaid = Math.min(payment, interest);
-                payment -= interestPaid;
+            // Process payment - consistent with other functions
+            let remainingPayment = parseFloat(entry.payment);
+
+            // Calculate unpaid interest at this point
+            const unpaidInterest = memberInterestCharged - memberInterestPaid;
+
+            // 1. Pay Interest first (payments go toward ANY unpaid interest)
+            if (remainingPayment > 0 && unpaidInterest > 0) {
+                const interestPayment = Math.min(remainingPayment, unpaidInterest);
+                remainingPayment -= interestPayment;
+                memberInterestPaid += interestPayment;
+                totalInterestPaid += interestPayment;
             }
 
             // 2. Pay Hulam Put Up
-            if (payment > 0 && remainingHulamPutUp > 0) {
-                const paid = Math.min(payment, remainingHulamPutUp);
+            if (remainingPayment > 0 && remainingHulamPutUp > 0) {
+                const paid = Math.min(remainingPayment, remainingHulamPutUp);
                 remainingHulamPutUp -= paid;
-                payment -= paid;
+                remainingPayment -= paid;
             }
 
             // 3. Pay Hulam
-            if (payment > 0 && remainingHulam > 0) {
-                const paid = Math.min(payment, remainingHulam);
+            if (remainingPayment > 0 && remainingHulam > 0) {
+                const paid = Math.min(remainingPayment, remainingHulam);
                 remainingHulam -= paid;
-                payment -= paid;
             }
         }
 
         // Add this member's outstanding to total
-        outstandingLoansTotal += remainingHulamPutUp + remainingHulam;
+        outstandingLoansTotal += Math.max(0, remainingHulamPutUp) + Math.max(0, remainingHulam);
     }
 
-    // Total Capital = Put-up (cash) + Interest earned + Penalties
-    const totalCapital = totalPutUp + totalInterestCharged + totalPenalty;
+    // Total Capital = Put-up (cash) + Interest PAID (actually collected) + Penalties
+    // Note: We use interest PAID, not interest charged, since unpaid interest isn't yet capital
+    const totalCapital = totalPutUp + totalInterestPaid + totalPenalty;
 
-    // Total Loans = Hulam Put-up + Hulam
+    // Total Loans = Hulam Put-up + Hulam (original amounts disbursed)
     const totalLoans = totalHulamPutUp + totalHulam;
 
     return {
@@ -806,6 +817,7 @@ export async function getDashboardStats() {
         totalHulam,
         totalLoans,
         totalInterest: totalInterestCharged,
+        totalInterestPaid,
         outstandingLoans: outstandingLoansTotal,
         totalPayments,
         totalPenalty,
