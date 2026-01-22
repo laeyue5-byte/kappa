@@ -9,10 +9,12 @@ import {
     CalendarDays,
     FileSpreadsheet,
     Menu,
+    LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useState } from 'react';
+import { signOut } from 'next-auth/react';
 
 const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -61,8 +63,18 @@ export function Navbar() {
                     })}
                 </nav>
 
-
-
+                {/* Desktop Logout Button */}
+                <div className="hidden md:flex items-center ml-auto">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => signOut({ callbackUrl: '/login' })}
+                        className="text-muted-foreground hover:text-foreground"
+                    >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                    </Button>
+                </div>
                 {/* Mobile Navigation */}
                 <div className="md:hidden ml-auto">
                     <Sheet open={open} onOpenChange={setOpen}>
@@ -97,7 +109,14 @@ export function Navbar() {
                                     );
                                 })}
 
-
+                                {/* Mobile Logout Button */}
+                                <button
+                                    onClick={() => signOut({ callbackUrl: '/login' })}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-950 mt-4 border-t pt-6"
+                                >
+                                    <LogOut className="h-5 w-5" />
+                                    Logout
+                                </button>
                             </div>
                         </SheetContent>
                     </Sheet>
